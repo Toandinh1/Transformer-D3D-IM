@@ -265,13 +265,13 @@ def find_min_positions(x):
     A = np.array([pos1, pos2])
     B = np.sort(A)
 
-    if np.all(A == [0, 1]) or np.all(A == [1, 0]):
+    if np.all(A == [0, 1]) or np.all(A == [1, 0,1]): #error
         output = 0
-    elif np.all(A == [2, 3]) or np.all(A == [3, 2, 1]):
+    elif np.all(A == [2, 3]) or np.all(A == [3, 2,1]):
         output = 1
-    elif np.all(A == [0, 2]) or np.all(A == [2, 0, 1]):
+    elif np.all(A == [0, 2]) or np.all(A == [2, 0,1]):
         output = 2
-    elif np.all(A == [1, 3]) or np.all(A == [3, 1, 1]):
+    elif np.all(A == [1, 3]) or np.all(A == [3, 1,1]):
         output = 3
     else:
         output = 0
