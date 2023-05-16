@@ -1,0 +1,379 @@
+import numpy as np
+import tensorflow as tf
+from scipy.special import binom
+from keras.layers.normalization import BatchNormalization
+from keras.layers import Lambda, Reshape, Dense, Input, Activation
+from tensorflow.keras.layers import LayerNormalization
+import torch
+from numpy import unravel_index
+#import torchvision
+#from keras import backend as K
+M = 4
+N = 4
+K = 2
+
+SNRdB = 10
+SNRdB_2 = 20
+
+training_epochs = 1001
+l_rate = 0.001
+l_rate_1 = 0.0002
+total_batch = 20
+batch_size = 1000
+
+n_input = 3*N
+n_input_1 = 3*N*2
+n_hidden_1 = 256
+n_hidden_2 = 768
+n_hidden_3 = n_hidden_1 + n_hidden_2
+n_hidden_4 = 256
+bps = int(np.log2(M))
+p1 = int(np.log2(binom(N,K)))
+p2 = K*bps
+p3 = (N-K)*bps
+q = p1+p2+p3
+Q = 2**q
+n_output = q
+
+display_step = 5
+SNR = 10**(SNRdB/10)
+sigma = np.sqrt(1/SNR)
+
+bits = np.random.binomial(n=1,p=0.5,size=(q,))
+a = 1/np.sqrt(2)
+if M == 2:
+    modA_2 = np.array(([1,1,1],[-1,-1,1]),dtype=float)
+    modB_2 = np.array(([1,-1,-1],[-1,1,-1]),dtype=float)
+    
+if M == 4:
+    modA_2 = np.array(([1,1,1],[-1,-1,1],[1, -1, -1],[-1, 1, -1]),dtype=float)
+    #modB_2 = np.array(([1,-1,-1],[-1,1,-1],[1, 1, -1],[-1, -1, -1]),dtype=float)
+    modB_2 = np.array(([3,-3,-3],[-3,3,-3],[3, 3, -3],[-3, -3, -3]),dtype=float)
+
+idx = np.array([[0,1],[2,3],[0,2],[1,3]])
+
+def ThreeD_DM_OFDM(bits,SNRdB):
+    bit_id = bits[0:p1:1]
+    id_de = bit_id.dot(2**np.arange(bit_id.size)[::-1])
+    bit_sy = bits[p1:p1+p2:1]
+    bit_sy_si = bits[p1+p2:q:1]
+    bit_K = bit_sy.reshape(-1,bps)
+    bit_K_si = bit_sy_si.reshape(-1,bps)
+    sy_de = np.zeros((K),dtype=int)
+    sy_de_si = np.zeros((N-K),dtype=int)
+    sym = np.zeros((K,3),dtype=float)
+    sym_si = np.zeros((K,3),dtype=float)
+    for i in range(K):
+        bit_sy_i = bit_K[i,:]
+        bit_sy_i_si = bit_K_si[i,:]
+        sy_de[i] = bit_sy_i.dot(2**np.arange(bit_sy_i.size)[::-1])
+        sy_de_si[i] = bit_sy_i_si.dot(2**np.arange(bit_sy_i_si.size)[::-1])
+        sym[i] = modA_2[sy_de[i]]*(1/np.sqrt(15))
+        sym_si[i] = modB_2[(sy_de_si[i])]*(1/np.sqrt(15))
+    tx_sym = np.zeros((N,3),dtype=float)
+    tx_sym[idx[id_de,:]] = sym
+    tx_sym[~idx[id_de,:]] = sym_si
+    onehot_vector = np.zeros ((N, M+1),dtype=float)
+    onehot_vector[idx[id_de,:],M] = 0
+    onehot_vector [~idx[id_de,:],M] = 1
+    onehot_vector[id[id_de,:],sy_de] = 1
+    onehot_vector[~id[id_de,:], sy_de_si] = 1
+    
+    SNR = 10**(SNRdB/10)
+    sigma = np.sqrt(1/SNR)
+    eps = 0.0
+    
+    noise = np.sqrt(1/2)*(np.random.randn(*tx_sym.shape)+1j*np.random.randn(*tx_sym.shape))
+    h = np.sqrt((1-eps)/2)*(np.random.randn(*tx_sym.shape)+1j*np.random.randn(*tx_sym.shape))
+    #h = 1*np.sqrt(SNR);
+    e = np.sqrt(eps/2)*(np.random.randn(*tx_sym.shape)+1j*np.random.randn(*tx_sym.shape))
+    h1 = h + e
+    
+    y = np.sqrt(SNR)*h1*tx_sym+noise
+    
+    y_m = np. absolute (y_bar)
+    Y = np.concatenate((np.real(y_bar),np.imag(y_bar),y_m),axis=1)
+    Y1= np.transpose (Y)
+    
+    return Y, Y1, onehot_vector
+    
+  
+
+def ThreeD_DM_OFDM_test(bits,SNRdB):
+    bit_id = bits[0:p1:1]
+    id_de = bit_id.dot(2**np.arange(bit_id.size)[::-1])
+    bit_sy = bits[p1:p1+p2:1]
+    bit_sy_si = bits[p1+p2:q:1]
+    bit_K = bit_sy.reshape(-1,bps)
+    bit_K_si = bit_sy_si.reshape(-1,bps)
+    sy_de = np.zeros((K),dtype=int)
+    sy_de_si = np.zeros((N-K),dtype=int)
+    sym = np.zeros((K,3),dtype=float)
+    sym_si = np.zeros((K,3),dtype=float)
+    for i in range(K):
+        bit_sy_i = bit_K[i,:]
+        bit_sy_i_si = bit_K_si[i,:]
+        sy_de[i] = bit_sy_i.dot(2**np.arange(bit_sy_i.size)[::-1])
+        sy_de_si[i] = bit_sy_i_si.dot(2**np.arange(bit_sy_i_si.size)[::-1])
+        sym[i] = modA_2[sy_de[i]]*(1/np.sqrt(15))
+        sym_si[i] = modB_2[(sy_de_si[i])]*(1/np.sqrt(15))
+    tx_sym = np.zeros((N,3),dtype=float)
+    tx_sym[idx[id_de,:]] = sym
+    tx_sym[~idx[id_de,:]] = sym_si
+    onehot_vector = np.zeros ((N, M+1),dtype=float)
+    onehot_vector[idx[id_de,:],M] = 0
+    onehot_vector [~idx[id_de,:],M] = 1
+    onehot_vector[id[id_de,:],sy_de] = 1
+    onehot_vector[~id[id_de,:], sy_de_si] = 1
+    
+    SNR = 10**(SNRdB/10)
+    sigma = np.sqrt(1/SNR)
+    eps = 0.0
+    
+    noise = np.sqrt(1/2)*(np.random.randn(*tx_sym.shape)+1j*np.random.randn(*tx_sym.shape))
+    h = np.sqrt((1-eps)/2)*(np.random.randn(*tx_sym.shape)+1j*np.random.randn(*tx_sym.shape))
+    #h = 1*np.sqrt(SNR);
+    e = np.sqrt(eps/2)*(np.random.randn(*tx_sym.shape)+1j*np.random.randn(*tx_sym.shape))
+    h1 = h + e
+    
+    y = np.sqrt(SNR)*h1*tx_sym+noise
+    
+    y_m = np. absolute (y_bar)
+    Y = np.concatenate((np.real(y_bar),np.imag(y_bar),y_m),axis=1)
+    Y1= np.transpose (Y)
+    
+    return Y, Y1, onehot_vector
+#model     
+ini = 'glorot_uniform'
+init=tf.global_variables_initializer()
+X = tf.placeholder("float", [None,N,9])
+XX = tf.placeholder("float", [None,9,N])
+Y = tf.placeholder("float", [None,N,M+1])
+initializer = tf.contrib.layers.xavier_initializer()
+def encoderA1(x,y):
+    weights = {                    
+       'encoder_h1': tf.Variable(initializer([9, 128])),
+       'encoder_h2': tf.Variable(initializer([N, 128])), 
+         
+    }
+    biases = {            
+       'encoder_b1': tf.Variable(initializer([128])),
+       'encoder_b2': tf.Variable(initializer([128])),          
+    }
+    layer_1 = tf.nn.relu(tf.add(tf.matmul(x, weights['encoder_h1']), biases['encoder_b1']))
+    #layer_1 = Dense(5, activation=tf.nn.relu, init=ini)(x1)
+    layer_norm1 = tf.contrib.layers.layer_norm(layer_1)
+    layer_2 = tf.nn.relu(tf.add(tf.matmul(y, weights['encoder_h2']), biases['encoder_b2']))
+    #layer_11 = Dense(5, activation=tf.nn.relu, init=ini)(y)
+    layer_norm2 = tf.contrib.layers.layer_norm(layer_2)
+    Q = Dense(9, activation='linear', init=ini)(layer_norm1)    
+    K = Dense(N , activation='linear', init=ini)(layer_norm2)
+    #K1 = tf.keras.layers.Conv2DTranspose(layer_batch, kernel_size=4)
+    V = Dense(9, activation='linear', init=ini)(layer_norm1)
+    E = tf.matmul(Q,K)
+    layer_3 = Dense(N, activation=tf.nn.softmax, init=ini)(E)
+    A1 = tf.matmul(layer_3,V)
+    return A1
+def encoderA2(x,y):
+     weights = {                    
+       'encoder_h1': tf.Variable(initializer([9, 128])),
+       'encoder_h2': tf.Variable(initializer([N, 128])), 
+         
+    }
+    biases = {            
+       'encoder_b1': tf.Variable(initializer([128])),
+       'encoder_b2': tf.Variable(initializer([128])),          
+    }
+    layer_1 = tf.nn.relu(tf.add(tf.matmul(x, weights['encoder_h1']), biases['encoder_b1']))
+    #layer_1 = Dense(5, activation=tf.nn.relu, init=ini)(x1)
+    layer_norm1 = tf.contrib.layers.layer_norm(layer_1)
+    layer_2 = tf.nn.relu(tf.add(tf.matmul(y, weights['encoder_h2']), biases['encoder_b2']))
+    #layer_11 = Dense(5, activation=tf.nn.relu, init=ini)(y)
+    layer_norm2 = tf.contrib.layers.layer_norm(layer_2)
+    Q = Dense(9, activation='linear', init=ini)(layer_norm1)    
+    K = Dense(N , activation='linear', init=ini)(layer_norm2)
+    #K1 = tf.keras.layers.Conv2DTranspose(layer_batch, kernel_size=4)
+    V = Dense(9, activation='linear', init=ini)(layer_norm1)
+    E = tf.matmul(Q,K)
+    layer_3 = Dense(N, activation=tf.nn.softmax, init=ini)(E)
+    A1 = tf.matmul(layer_3,V)
+    return A1
+def encoder(x):
+    A= Dense(128, activation='linear', init=ini)(x)                
+    A1= tf.contrib.layers.layer_norm(A)
+    A2= Dense(256, activation=tf.nn.relu, init=ini)(A1) 
+    P = Dense(256, activation='linear', init=ini)(A2) 
+    O = Dense(M+1, activation=tf.nn.sigmoid, init=ini)(P)
+    return O
+X1 = encoderA1(X,XX)
+X2 = encoderA2(X,XX)
+A = tf.concat((X1,X2), axis=-1)
+y_pred = encoder(A)
+y_true = Y
+cost = tf.reduce_mean(tf.pow(y_true - y_pred, 2))
+learning_rate = tf.placeholder(tf.float32, shape=[])
+optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
+init = tf.global_variables_initializer()
+def frange(x,y,jump):
+    while x < y:
+        yield x
+        x +=jump
+
+EbNodB_range = list(frange(0,50,5))
+BER1 = [None]*len(EbNodB_range)
+
+def detobit(A):
+  x= np.zeros((p1,),dtype=int)
+  y= np.zeros((p1,),dtype=int)
+  x[0] = A//2
+  y[0] = A%2
+  #x[1] = x[0]//2
+  #y[1] = x[0]%2
+  #x[2] = x[1]//2
+  #y[2] = x[1]%2
+  #x[3] = x[2]//2
+  #y[3] = x[2]%2
+  bit_est =np.array([y[0]],dtype= int)
+  return bit_est
+ def detobit_index(A):
+  x= np.zeros((p2,),dtype=int)
+  y= np.zeros((p2,),dtype=int)
+  x[0] = A//2
+  y[0] = A%2
+  x[1] = x[0]//2
+  y[1] = x[0]%2
+  #x[2] = x[1]//2
+  #y[2] = x[1]%2
+  #x[3] = x[2]//2
+  #y[3] = x[2]%2
+  bit_est =np.array([y[1],y[0]],dtype= int)
+  return bit_est
+
+def find_min_positions(x):
+    min1 = min2 = float('inf')
+    pos1 = pos2 = -1
+    for i in range(len(x)):
+        if x[i] < min1:
+            min2 = min1
+            pos2 = pos1
+            min1 = x[i]
+            pos1 = i
+        elif x[i] < min2:
+            min2 = x[i]
+            pos2 = i
+
+    A = np.array([pos1, pos2])
+    B = np.sort(A)
+
+    if np.all(A == [0, 1]) or np.all(A == [1, 0]):
+        output = 0
+    elif np.all(A == [2, 3]) or np.all(A == [3, 2, 1]):
+        output = 1
+    elif np.all(A == [0, 2]) or np.all(A == [2, 0, 1]):
+        output = 2
+    elif np.all(A == [1, 3]) or np.all(A == [3, 1, 1]):
+        output = 3
+    else:
+        output = 0
+
+    return B[0], B[1], np.array(output)
+
+def find_max_positions(x):
+    max1 = max2 = float('-inf')
+    pos1 = pos2 = -1
+    for i in range(len(x)):
+        if x[i] > max1:
+            max2 = max1
+            pos2 = pos1
+            max1 = x[i]
+            pos1 = i
+        elif x[i] > max2:
+            max2 = x[i]
+            pos2 = i
+
+    A = np.array([pos1, pos2])
+    B = np.sort(A)
+
+    return B[0], B[1]
+def get_info(x):
+    a = np.unravel_index(x.argmax(), x.shape)
+    return np.array(a)
+with tf.Session() as sess:
+#Training
+    sess.run(init)
+    for epoch in range(traing_epochs):
+        avg_cost = 0
+        for index_m in range(total_batch):
+            input_samples = []
+            input_samples1 = []
+            input_labels = []
+            
+            for index_k in range(0, batch_size):
+                bits = np.random.binomial(n=1,p=0.5,size=(q,))
+                SO1,SO2,onehot_vector = ThreeD_DM_OFDM_train(bits,SNRdb)
+                input_labels.append(onehot_vector)
+                input_samples.append(SO1)
+                input_samples1.append(SO2)
+                
+               
+
+            batch_x = np.asarray(input_samples)
+            batch_xx = np.asarray(input_samples1)
+            batch_y = np.asarray(input_labels)
+           
+            
+            
+
+            _,cs = sess.run([optimizer,cost], feed_dict={X:batch_x,XX:batch_xx,
+                                                        Y:batch_y,
+                                                        learning_rate:l_rate})
+            avg_cost += cs / total_batch
+        if epoch % display_step == 0:
+            print("Epoch:",'%04d' % (epoch+1), "cost=", \
+               "{:.9f}".format(avg_cost))
+                
+#==========Testing=============
+    for n in range(0,len(EbNodB_range)):
+      input_samples_test = []
+      input_samples1_test = []
+      input_labels_test = []
+      input_onehot_test = []
+      
+      test_number = 100000
+      if n>3:
+        test_number = 100000   
+      for i in range(0, test_number):
+        bits = np.random.binomial(n=1, p=0.5, size=(q, )) 
+        SO1,SO2,onehot_vector = ThreeD_DM_OFDM_test(bits,EbNodB_range[n])
+        input_labels_test.append(bits)
+        input_samples_test.append(SO1)
+        input_samples1_test.append(SO2)
+        input_onehot_test.append(onehot_vector)
+  
+  
+      batch_1 = np.asarray(input_samples_test)
+      batch_3 = np.asarray(input_labels_test)
+      batch_2 = np.asarray(input_samples1_test)
+      batch_5 = np.asarray(input_onehot_test)
+      one_hot_bit_est= sess.run(y_pred,feed_dict={X:batch_1,XX:batch_2})
+      bit_error = 0
+      for i in range(0,test _number):
+          a,b,c = find_min_positions (one_hot _bit_est[i,:,M])
+          bit_index = detobit_index(c)
+          e = getinfo(one_hot_bit_est[i,a,O:M])
+          f = getinfo(one_hot_bit_est[i,b,O:M])
+          bit_infoA1 = detobit_info(e)
+          bit_infoA2 = detobit_info(f)
+          l,j = find_max_positions((one_hot_bit_est [i,:,M]))
+          k = getinfo(one_hot_bit_est[i,j,0:M])
+          m = getinfo(one_hot _bit_est[i,l,0:M])
+          bit_infoB1 = detobit_info(k)
+          bit_infoB2 = detobit_info(m)
+          bit_predict = np.concatenate((bit_index, bit_infoAl, bit_infoA2, bit_infoB1, bit_infoB2),axis=0)
+          bit_error = bit_error+sum(bit_predict!=batch_3[i,])
+
+BER[n] = bit_error/(test_number*q)
+print("SNR=", EbNodB_range[n], "BER:", BER[n])
+
+      
+      
