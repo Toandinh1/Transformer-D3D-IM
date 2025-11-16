@@ -3,6 +3,9 @@ This repo is the official implementation of **[Transformer-Based Deep Learning D
 
 ## Citation
 
+Please cite this work if you find it useful.
+
+
 ```
 @INPROCEEDINGS{10317107,
   author={Gian, Toan and Nguyen, Tien-Hoa and Nguyen, Trung Tan and Pham, Van-Cuong and Van Luong, Thien},
